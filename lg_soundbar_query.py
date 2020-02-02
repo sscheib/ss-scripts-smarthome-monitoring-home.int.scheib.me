@@ -17,6 +17,7 @@ RELEVANT_FIELDS = {
 }
 
 def callback(data):
+    pprint(data)
     if data['msg'] not in RELEVANT_FIELDS:
         return
 
@@ -27,24 +28,36 @@ def callback(data):
         if data['msg'] == 'UPDATE_VIEW_INFO':
             if isinstance(value, dict):
                 for nested_name, nested_value in value.items():
-                    # if values are empty zabbix_sender expects the value to be "" in order to get processed properly
+                    # if values are empty zabbix_sender expects the value to be "" if the value is actually empty (for strings [starting with s in their name)
+                    # and 0 for boolean or integers (which is the other case) in order to get processed properly
                     if not nested_value:
-                        nested_value = '\"\"'
+                        if nested_name.startswith('s'):
+                            nested_value = '\"\"'
+                        else:
+                            nested_value = 0
 
                     cmd = "echo '- {}' | zabbix_sender -i - -c /etc/zabbix/zabbix_agentd.conf".format(data['msg'].lower() + '[' + name + '__' + nested_name + '] ' + str(nested_value))
                     print(cmd)
                     retvalue = os.system(cmd)
-                    print(retvalue)
+                    if retvalue != 0:
+                        print('ERROR: Submitting the last values to the Zabbix server for the item failed')
+                        sys.exit(1)
                     
         else:
-            # if values are empty zabbix_sender expects the value to be "" in order to get processed properly
+            # if values are empty zabbix_sender expects the value to be "" if the value is actually empty (for strings [starting with s in their name)
+            # and 0 for boolean or integers (which is the other case) in order to get processed properly
             if not value:
-                value = '\"\"'
+                if name.startswith('s'):
+                    value = '\"\"'
+                else:
+                    value = 0
 
             cmd = "echo '- {}' | zabbix_sender -i - -c /etc/zabbix/zabbix_agentd.conf".format(data['msg'].lower() + '[' + name + '] ' + str(value))
             print(cmd)
             retvalue = os.system(cmd)
-            print(retvalue)
+            if retvalue != 0:
+                print('ERROR: Submitting the last values to the Zabbix server for the item failed')
+                sys.exit(1)
 
 def main(args):
     parser = argparse.ArgumentParser(description='Transfer releases from FTP')
